@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: producer
+spec:
+  selector:
+    matchLabels:
+      run: producer
+  template:
+    metadata:
+      labels:
+        run: producer
+    spec:
+      containers:
+        - name: producer
+          image: strimzi/kafka
+          imagePullPolicy: Always
+          command: ["/opt/kafka/bin/kafka-producer-perf-test.sh"]
+          args: [
+            "--topic", "simple-topic",
+            "--num-records", "1000000",
+            "--record-size", "100",
+            "--throughput", "1000",
+            "--producer-props", "bootstrap.servers=simple-strimzi-kafka-bootstrap:9092"
+          ]

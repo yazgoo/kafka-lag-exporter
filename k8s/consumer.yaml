@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consumer
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: consumer
+  template:
+    metadata:
+      labels:
+        app: consumer
+    spec:
+      containers:
+        - name: consumer
+          image: strimzi/kafka
+          imagePullPolicy: Always
+          command: ["/opt/kafka/bin/kafka-console-consumer.sh"]
+          args: [
+            "--bootstrap-server", "simple-strimzi-kafka-bootstrap:9092",
+            "--topic", "simple-topic",
+            "--group", "test-group-id",
+            "--consumer-property", "enable.auto.commit=true"
+          ]
