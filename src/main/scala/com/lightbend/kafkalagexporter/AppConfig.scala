@@ -18,9 +18,11 @@ import scala.util.Try
 object AppConfig {
   def apply(config: Config): AppConfig = {
     val c = config.getConfig("kafka-lag-exporter")
-    val graphiteCluster: Option[GraphiteCluster] = (
-      for (host <- Try(c.getString("graphite-cluster-host"));
-           port <- Try(c.getInt("graphite-cluster-port"))) yield GraphiteCluster(host, port)).toOption
+    val graphiteConfig: Option[GraphiteConfig] = (
+      for (host <- Try(c.getString("graphite-host"));
+           port <- Try(c.getInt("graphite-port"));
+           periodInSeconds <- Try(c.getInt("graphite-period-in-seconds")),
+             ) yield GraphiteConfig(host, port, periodInSeconds)).toOption
     val pollInterval = c.getDuration("poll-interval").toScala
     val lookupTableSize = c.getInt("lookup-table-size")
     val port = c.getInt("port")
@@ -70,7 +72,7 @@ object AppConfig {
     }
     val strimziWatcher = c.getString("watchers.strimzi").toBoolean
     val metricWhitelist = c.getStringList("metric-whitelist").asScala.toList
-    AppConfig(pollInterval, lookupTableSize, port, clientGroupId, kafkaClientTimeout, clusters, strimziWatcher, metricWhitelist, graphiteCluster)
+    AppConfig(pollInterval, lookupTableSize, port, clientGroupId, kafkaClientTimeout, clusters, strimziWatcher, metricWhitelist, graphiteConfig)
   }
 
   // Copied from Alpakka Kafka
@@ -125,7 +127,7 @@ final case class KafkaCluster(name: String, bootstrapBrokers: String,
 }
 final case class AppConfig(pollInterval: FiniteDuration, lookupTableSize: Int, port: Int, clientGroupId: String,
                            clientTimeout: FiniteDuration, clusters: List[KafkaCluster], strimziWatcher: Boolean,
-                           metricWhitelist: List[String], graphiteCluster: Option[GraphiteCluster]) {
+                           metricWhitelist: List[String], graphiteConfig: Option[GraphiteConfig]) {
   override def toString(): String = {
     val clusterString =
       if (clusters.isEmpty)

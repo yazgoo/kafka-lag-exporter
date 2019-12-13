@@ -20,16 +20,16 @@ object PrometheusEndpointSink {
   type Metrics = Map[GaugeDefinition, Gauge]
 
   def apply(definitions: MetricDefinitions, metricWhitelist: List[String], clusterGlobalLabels: ClusterGlobalLabels,
-            server: HTTPServer, registry: CollectorRegistry, graphiteCluster: Option[GraphiteCluster]): MetricsSink = {
-    Try(new PrometheusEndpointSink(definitions, metricWhitelist, clusterGlobalLabels, server, registry, graphiteCluster))
+            server: HTTPServer, registry: CollectorRegistry, graphiteConfig: Option[GraphiteConfig]): MetricsSink = {
+    Try(new PrometheusEndpointSink(definitions, metricWhitelist, clusterGlobalLabels, server, registry, graphiteConfig))
       .fold(t => throw new Exception("Could not create Prometheus Endpoint", t), sink => sink)
   }
 }
 
 class PrometheusEndpointSink private(definitions: MetricDefinitions, metricWhitelist: List[String], clusterGlobalLabels: ClusterGlobalLabels,
-                                     server: HTTPServer, registry: CollectorRegistry, graphiteCluster: Option[GraphiteCluster]) extends MetricsSink {
-  graphiteCluster.map { cluster =>
-    new Graphite(cluster.host, cluster.port).start(registry, 20)
+                                     server: HTTPServer, registry: CollectorRegistry, graphiteConfig: Option[GraphiteConfig]) extends MetricsSink {
+  val clusterOpt = graphiteConfig.map { conf =>
+    new Graphite(conf.host, conf.port).start(registry, conf.periodInSeconds)
   }
   DefaultExports.initialize()
 
@@ -72,6 +72,10 @@ class PrometheusEndpointSink private(definitions: MetricDefinitions, metricWhite
      */
     registry.clear()
     server.stop()
+    clusterOpt.foreach { cluster => 
+      cluster.interrupt()
+      cluster.join()
+    }
   }
 
 

@@ -4,4 +4,4 @@
 
 package com.lightbend.kafkalagexporter
 
-case class GraphiteCluster(host: String, port: Int)
+case class GraphiteConfig(host: String, port: Int, periodInSeconds: Int)
