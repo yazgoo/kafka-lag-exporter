@@ -9,6 +9,9 @@ import com.lightbend.kafkalagexporter.PrometheusEndpointSink.{ClusterGlobalLabel
 import io.prometheus.client.exporter.HTTPServer
 import io.prometheus.client.hotspot.DefaultExports
 import io.prometheus.client.{CollectorRegistry, Gauge}
+import java.net.Socket
+import java.io.PrintWriter
+import scala.util.{Try, Success, Failure}
 
 import scala.util.Try
 
@@ -44,16 +47,24 @@ class PrometheusEndpointSink private(definitions: MetricDefinitions, metricWhite
   }
 
   def graphitePush(graphiteConfig: GraphiteConfig, metricName: String, metricValue: Double): Unit = {
-    val s = new java.net.Socket(graphiteConfig.host, graphiteConfig.port)
-    val writer= new java.io.BufferedWriter(new java.io.PrintWriter(s.getOutputStream))
-    val now = System.currentTimeMillis() / 1000
-    writer.write(metricName + " " + metricValue + " " + now + "\n")
-    writer.close()
-    s.close()
+    Try(new Socket(graphiteConfig.host, graphiteConfig.port)) match {
+      case Success(socket) =>
+        Try(new PrintWriter(socket.getOutputStream)) match {
+          case Success(writer) =>
+            writer.print(s"${metricName} ${metricValue} ${System.currentTimeMillis / 1000}\n")
+            writer.close
+            socket.close
+          case Failure(_) =>
+            socket.close
+        }
+      case Failure(_) => {
+      }
+    }
   }
 
   def phometheusMetricNameToGraphiteMetricName(metricValue: MetricValue): String = {
-    (getGlobalLabelValuesOrDefault(metricValue.clusterName) ++ metricValue.labels).mkString(".") + "." + metricValue.definition.name;
+    (getGlobalLabelValuesOrDefault(metricValue.clusterName) ++ metricValue.labels
+      ).map( x => x.replaceAll("\\.", "_")).mkString(".") + "." + metricValue.definition.name;
   }
 
   override def report(m: MetricValue): Unit = {
