@@ -8,7 +8,6 @@ import com.lightbend.kafkalagexporter.MetricsSink._
 import com.lightbend.kafkalagexporter.PrometheusEndpointSink.{ClusterGlobalLabels, ClusterName, Metrics}
 import io.prometheus.client.exporter.HTTPServer
 import io.prometheus.client.hotspot.DefaultExports
-import io.prometheus.client.bridge.Graphite
 import io.prometheus.client.{CollectorRegistry, Gauge}
 
 import scala.util.Try
@@ -28,9 +27,6 @@ object PrometheusEndpointSink {
 
 class PrometheusEndpointSink private(definitions: MetricDefinitions, metricWhitelist: List[String], clusterGlobalLabels: ClusterGlobalLabels,
                                      server: HTTPServer, registry: CollectorRegistry, graphiteConfig: Option[GraphiteConfig]) extends MetricsSink {
-  val clusterOpt = graphiteConfig.map { conf =>
-    new Graphite(conf.host, conf.port).start(registry, conf.periodInSeconds)
-  }
   DefaultExports.initialize()
 
   private[kafkalagexporter] val globalLabelNames: List[String] = {
@@ -47,10 +43,26 @@ class PrometheusEndpointSink private(definitions: MetricDefinitions, metricWhite
     }.toMap
   }
 
+  def graphitePush(graphiteConfig: GraphiteConfig, metricName: String, metricValue: Double): Unit = {
+    val s = new java.net.Socket(graphiteConfig.host, graphiteConfig.port)
+    val writer= new java.io.BufferedWriter(new java.io.PrintWriter(s.getOutputStream))
+    val now = System.currentTimeMillis() / 1000
+    writer.write(metricName + " " + metricValue + " " + now + "\n")
+    writer.close()
+    s.close()
+  }
+
+  def phometheusMetricNameToGraphiteMetricName(metricValue: MetricValue): String = {
+    (getGlobalLabelValuesOrDefault(metricValue.clusterName) ++ metricValue.labels).mkString(".") + "." + metricValue.definition.name;
+  }
+
   override def report(m: MetricValue): Unit = {
     if (metricWhitelist.exists(m.definition.name.matches)) {
       val metric = metrics.getOrElse(m.definition, throw new IllegalArgumentException(s"No metric with definition ${m.definition.name} registered"))
       metric.labels(getGlobalLabelValuesOrDefault(m.clusterName) ++ m.labels: _*).set(m.value)
+      graphiteConfig.foreach { conf =>
+        graphitePush(conf, phometheusMetricNameToGraphiteMetricName(m), m.value);
+      }
     }
   }
 
@@ -72,10 +84,6 @@ class PrometheusEndpointSink private(definitions: MetricDefinitions, metricWhite
      */
     registry.clear()
     server.stop()
-    clusterOpt.foreach { cluster => 
-      cluster.interrupt()
-      cluster.join()
-    }
   }
 
 

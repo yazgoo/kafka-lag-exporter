@@ -20,9 +20,8 @@ object AppConfig {
     val c = config.getConfig("kafka-lag-exporter")
     val graphiteConfig: Option[GraphiteConfig] = (
       for (host <- Try(c.getString("graphite-host"));
-           port <- Try(c.getInt("graphite-port"));
-           periodInSeconds <- Try(c.getInt("graphite-period-in-seconds")),
-             ) yield GraphiteConfig(host, port, periodInSeconds)).toOption
+           port <- Try(c.getInt("graphite-port")),
+             ) yield GraphiteConfig(host, port)).toOption
     val pollInterval = c.getDuration("poll-interval").toScala
     val lookupTableSize = c.getInt("lookup-table-size")
     val port = c.getInt("port")
@@ -129,6 +128,12 @@ final case class AppConfig(pollInterval: FiniteDuration, lookupTableSize: Int, p
                            clientTimeout: FiniteDuration, clusters: List[KafkaCluster], strimziWatcher: Boolean,
                            metricWhitelist: List[String], graphiteConfig: Option[GraphiteConfig]) {
   override def toString(): String = {
+    val graphiteString =
+      graphiteConfig.map { graphite => s"""
+        |Graphite: 
+        |  host: ${graphite.host}
+        |  port: ${graphite.port}
+        """.stripMargin }.getOrElse("")
     val clusterString =
       if (clusters.isEmpty)
         "  (none)"
@@ -140,6 +145,7 @@ final case class AppConfig(pollInterval: FiniteDuration, lookupTableSize: Int, p
        |Prometheus metrics whitelist: [${metricWhitelist.mkString(", ")}]
        |Admin client consumer group id: $clientGroupId
        |Kafka client timeout: $clientTimeout
+       |$graphiteString
        |Statically defined Clusters:
        |$clusterString
        |Watchers:

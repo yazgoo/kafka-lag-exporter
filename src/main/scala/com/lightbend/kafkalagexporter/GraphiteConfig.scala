@@ -4,4 +4,4 @@
 
 package com.lightbend.kafkalagexporter
 
-case class GraphiteConfig(host: String, port: Int, periodInSeconds: Int)
+case class GraphiteConfig(host: String, port: Int)
